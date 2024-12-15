@@ -25,7 +25,6 @@ const LoginScreen = ({ navigation }) => {
           password,
         });
   
-
         if (response.data) {
 
           console.log('Login successful', response.data);
