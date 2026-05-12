@@ -1,21 +1,20 @@
-// screens/LoginScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Button, TextInput, Text, StyleSheet, ActivityIndicator, TouchableOpacity  } from 'react-native';
+import { View, Button, TextInput, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { CommonActions } from '@react-navigation/native';
+import { login } from '../lib/auth';
+import { secureStorage } from '../lib/secureStorage';
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [dns, setDns] = useState('pibeapk.dyndns.org');
-  const [port, setPort] = useState('2222');
-  const [showConfig, setShowConfig] = useState(true); // Por defecto mostrar si no hay config
-  const [configLoaded, setConfigLoaded] = useState(false);
+  const [dns, setDns] = useState('10.0.2.2');
+  const [port, setPort] = useState('3501');
+  const [showConfig, setShowConfig] = useState(true);
   const [rememberCredentials, setRememberCredentials] = useState(false);
 
-  // Cargar configuración guardada al montar el componente
   useEffect(() => {
     loadConfig();
   }, []);
@@ -24,28 +23,21 @@ const LoginScreen = ({ navigation }) => {
     try {
       const savedDns = await AsyncStorage.getItem('app_dns');
       const savedPort = await AsyncStorage.getItem('app_port');
-      const savedUsername = await AsyncStorage.getItem('saved_username');
-      const savedPassword = await AsyncStorage.getItem('saved_password');
       const savedRemember = await AsyncStorage.getItem('remember_credentials');
-      
+      const savedCreds = await secureStorage.getSavedCredentials();
+
       if (savedDns) setDns(savedDns);
       if (savedPort) setPort(savedPort);
-      
-      // Cargar credenciales guardadas
-      if (savedRemember === 'true' && savedUsername && savedPassword) {
-        setUsername(savedUsername);
-        setPassword(savedPassword);
+
+      if (savedRemember === 'true' && savedCreds) {
+        setUsername(savedCreds.username);
+        setPassword(savedCreds.password);
         setRememberCredentials(true);
       }
-      
-      // Si ya hay configuración guardada, colapsar el panel
-      if (savedDns && savedPort) {
-        setShowConfig(false);
-      }
-      setConfigLoaded(true);
-    } catch (error) {
-      console.error('Error loading config:', error);
-      setConfigLoaded(true);
+
+      if (savedDns && savedPort) setShowConfig(false);
+    } catch (err) {
+      console.error('Error loading config:', err);
     }
   };
 
@@ -55,77 +47,63 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem('app_port', port);
       alert('Configuración guardada exitosamente');
       setShowConfig(false);
-    } catch (error) {
-      console.error('Error saving config:', error);
+    } catch (err) {
+      console.error('Error saving config:', err);
       alert('Error al guardar la configuración');
     }
   };
 
   const handleLogin = async () => {
     if (!username || !password) {
-        alert('Por favor, ingrese el nombre de usuario y la contraseña');
-        return;
+      alert('Por favor, ingrese el nombre de usuario y la contraseña');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await login(username, password);
+
+      if (rememberCredentials) {
+        await secureStorage.setSavedCredentials(username, password);
+        await AsyncStorage.setItem('remember_credentials', 'true');
+      } else {
+        await secureStorage.clearSavedCredentials();
+        await AsyncStorage.setItem('remember_credentials', 'false');
       }
 
-      setLoading(true); 
-      setError(null); 
-
-      try {
-        const apiUrl = `http://${dns}:${port}/api/login`;
-        const response = await axios.post(apiUrl, {
-          username,
-          password,
-        });
-  
-        // Validar que el backend devuelva un array con empresas (usuario válido)
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          
-          console.log('Login successful', response.data);
-          
-          // Guardar datos del login
-          await AsyncStorage.setItem('logged_username', username);
-          await AsyncStorage.setItem('login_data', JSON.stringify(response.data));
-          
-          // Guardar o eliminar credenciales según la opción
-          if (rememberCredentials) {
-            await AsyncStorage.setItem('saved_username', username);
-            await AsyncStorage.setItem('saved_password', password);
-            await AsyncStorage.setItem('remember_credentials', 'true');
-          } else {
-            await AsyncStorage.removeItem('saved_username');
-            await AsyncStorage.removeItem('saved_password');
-            await AsyncStorage.setItem('remember_credentials', 'false');
-          }
-          
-          navigation.navigate('Buscar');
-        } else {
-          // El backend devolvió array vacío = credenciales inválidas
-          setError('Credenciales inválidas. Verifique usuario y contraseña.');
-        }
-      } catch (err) {
-        console.error('Login failed', err);
-        if (err.response && err.response.status === 401) {
-          setError('Credenciales inválidas.');
-        } else if (err.response && err.response.status === 404) {
-          setError('Usuario no encontrado.');
-        } else {
-          setError('Error de conexión. Verifique la configuración del servidor.');
-        }
-      } finally {
-        setLoading(false);
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Buscar' }],
+        })
+      );
+    } catch (err) {
+      console.error('Login failed', err);
+      const status = err.response?.status;
+      if (status === 401) {
+        setError('Credenciales inválidas.');
+      } else if (status === 404) {
+        setError('Usuario no encontrado.');
+      } else {
+        setError('Error de conexión. Verifique la configuración del servidor.');
       }
-    };
-  
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
-      
+
       <TextInput
         style={styles.input}
         placeholder="Nombre de usuario"
         value={username}
         onChangeText={setUsername}
+        autoCapitalize="none"
       />
       <TextInput
         style={styles.input}
@@ -134,9 +112,8 @@ const LoginScreen = ({ navigation }) => {
         value={password}
         onChangeText={setPassword}
       />
-      
-      {/* Checkbox para recordar credenciales */}
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={styles.rememberContainer}
         onPress={() => setRememberCredentials(!rememberCredentials)}
       >
@@ -145,17 +122,17 @@ const LoginScreen = ({ navigation }) => {
         </View>
         <Text style={styles.rememberText}>Recordar usuario y contraseña</Text>
       </TouchableOpacity>
-      
+
       {error && <Text style={styles.errorText}>{error}</Text>}
-      
+
       {loading ? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (
         <Button title="Login" onPress={handleLogin} />
       )}
 
-      <TouchableOpacity 
-        style={styles.configButton} 
+      <TouchableOpacity
+        style={styles.configButton}
         onPress={() => setShowConfig(!showConfig)}
       >
         <Text style={styles.configButtonText}>
@@ -166,15 +143,16 @@ const LoginScreen = ({ navigation }) => {
       {showConfig && (
         <View style={styles.configContainer}>
           <Text style={styles.configTitle}>Configuración del servidor</Text>
-          
+
           <Text style={styles.label}>DNS/Host:</Text>
           <TextInput
             style={styles.input}
             placeholder="Ej: pibeapk.dyndns.org"
             value={dns}
             onChangeText={setDns}
+            autoCapitalize="none"
           />
-          
+
           <Text style={styles.label}>Puerto:</Text>
           <TextInput
             style={styles.input}
@@ -183,11 +161,11 @@ const LoginScreen = ({ navigation }) => {
             onChangeText={setPort}
             keyboardType="numeric"
           />
-          
+
           <Text style={styles.previewText}>
             URL: http://{dns}:{port}/api/login
           </Text>
-          
+
           <Button title="Guardar configuración" onPress={saveConfig} />
         </View>
       )}
@@ -196,31 +174,31 @@ const LoginScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    justifyContent: 'center', 
+  container: {
+    flex: 1,
+    justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#f5f5f5' 
+    backgroundColor: '#f5f5f5',
   },
-  title: { 
-    fontSize: 28, 
-    marginBottom: 20, 
+  title: {
+    fontSize: 28,
+    marginBottom: 20,
     textAlign: 'center',
     fontWeight: 'bold',
-    color: '#333'
+    color: '#333',
   },
-  input: { 
-    borderWidth: 1, 
-    marginBottom: 10, 
+  input: {
+    borderWidth: 1,
+    marginBottom: 10,
     padding: 12,
     backgroundColor: 'white',
     borderColor: '#ddd',
-    borderRadius: 5
+    borderRadius: 5,
   },
   errorText: {
     color: 'red',
     marginBottom: 10,
-    textAlign: 'center'
+    textAlign: 'center',
   },
   rememberContainer: {
     flexDirection: 'row',
@@ -254,11 +232,11 @@ const styles = StyleSheet.create({
   configButton: {
     marginTop: 20,
     padding: 10,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   configButtonText: {
     color: '#007AFF',
-    fontSize: 14
+    fontSize: 14,
   },
   configContainer: {
     marginTop: 20,
@@ -266,19 +244,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd'
+    borderColor: '#ddd',
   },
   configTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#333'
+    color: '#333',
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 5,
-    color: '#555'
+    color: '#555',
   },
   previewText: {
     fontSize: 12,
@@ -286,8 +264,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     padding: 10,
     backgroundColor: '#f0f0f0',
-    borderRadius: 5
-  }
+    borderRadius: 5,
+  },
 });
 
 export default LoginScreen;

@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getProductDetails, updateProductStock } from '../lib/data';
 
 const ProductDetailScreen = ({ route }) => {
   const { product } = route.params;
   const [loading, setLoading] = useState(true);
   const [stockData, setStockData] = useState([]);
   const [priceData, setPriceData] = useState([]);
-  const [dns, setDns] = useState('pibeapk.dyndns.org');
-  const [port, setPort] = useState('2222');
-  const [username, setUsername] = useState('');
   const [newStock, setNewStock] = useState('');
   const [updatingStock, setUpdatingStock] = useState(false);
   const [showStockInput, setShowStockInput] = useState(false);
@@ -18,29 +15,17 @@ const ProductDetailScreen = ({ route }) => {
   const navigation = useNavigation();
 
   useEffect(() => {
-    loadConfigAndFetchDetails();
+    fetchDetails();
   }, [product.numint]);
 
-  const loadConfigAndFetchDetails = async () => {
+  const fetchDetails = async () => {
+    setLoading(true);
     try {
-      const savedDns = await AsyncStorage.getItem('app_dns');
-      const savedPort = await AsyncStorage.getItem('app_port');
-      const savedUsername = await AsyncStorage.getItem('logged_username');
-      
-      const currentDns = savedDns || 'pibeapk.dyndns.org';
-      const currentPort = savedPort || '2222';
-      
-      if (savedDns) setDns(savedDns);
-      if (savedPort) setPort(savedPort);
-      if (savedUsername) setUsername(savedUsername);
-      
-      // Fetch product details
-      const response = await fetch(`http://${currentDns}:${currentPort}/api/product/${product.numint}`);
-      const data = await response.json();
-      setStockData(data.stock || []);
-      setPriceData(data.price || []);
-    } catch (error) {
-      console.error('Error fetching product details:', error);
+      const { stock, price } = await getProductDetails(product.numint);
+      setStockData(stock);
+      setPriceData(price);
+    } catch (err) {
+      console.error('Error fetching product details:', err);
     } finally {
       setLoading(false);
     }
@@ -54,30 +39,14 @@ const ProductDetailScreen = ({ route }) => {
 
     setUpdatingStock(true);
     try {
-      const apiUrl = `http://${dns}:${port}/api/product/${product.numint}/stock`;
-      const response = await fetch(apiUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: username,
-          stock: newStock,
-        }),
-      });
-
-      if (response.ok) {
-        Alert.alert('Éxito', 'Stock actualizado correctamente');
-        setShowStockInput(false);
-        setNewStock('');
-        // Recargar los detalles del producto
-        loadConfigAndFetchDetails();
-      } else {
-        Alert.alert('Error', 'No se pudo actualizar el stock');
-      }
-    } catch (error) {
-      console.error('Error updating stock:', error);
-      Alert.alert('Error', 'Error de conexión al actualizar el stock');
+      await updateProductStock(product.numint, newStock);
+      Alert.alert('Éxito', 'Stock actualizado correctamente');
+      setShowStockInput(false);
+      setNewStock('');
+      fetchDetails();
+    } catch (err) {
+      console.error('Error updating stock:', err);
+      Alert.alert('Error', 'No se pudo actualizar el stock');
     } finally {
       setUpdatingStock(false);
     }

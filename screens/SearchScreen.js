@@ -1,56 +1,31 @@
 // screens/SearchScreen.js
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, TextInput, FlatList, Text, StyleSheet, TouchableOpacity, Keyboard, Pressable, Modal, Alert, InteractionManager } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import { View, TextInput, FlatList, Text, StyleSheet, Keyboard, Pressable, Modal, Alert, InteractionManager } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from '@react-navigation/native';
+import { searchProductsByName, searchProductsByCode } from '../lib/data';
 
 const SearchScreen = ({ navigation }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [dns, setDns] = useState('pibeapk.dyndns.org');
-  const [port, setPort] = useState('2222');
   const searchInputRef = useRef(null);
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Cargar configuración al montar
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  // Foco automático en el SearchBar cada vez que la pantalla recibe foco
   useFocusEffect(
     useCallback(() => {
-      // Esperar a que las animaciones de navegación terminen
       const interactionPromise = InteractionManager.runAfterInteractions(() => {
-        // Usar un pequeño delay adicional para asegurar que el teclado pueda abrirse
         setTimeout(() => {
-          if (searchInputRef.current) {
-            searchInputRef.current.focus();
-          }
+          searchInputRef.current?.focus();
         }, 50);
       });
-      
       return () => interactionPromise.cancel();
     }, [])
   );
-
-  const loadConfig = async () => {
-    try {
-      const savedDns = await AsyncStorage.getItem('app_dns');
-      const savedPort = await AsyncStorage.getItem('app_port');
-      
-      if (savedDns) setDns(savedDns);
-      if (savedPort) setPort(savedPort);
-    } catch (error) {
-      console.error('Error loading config:', error);
-    }
-  };
 
   // Abrir escáner de código de barras
   const openScanner = async () => {
@@ -90,78 +65,36 @@ const SearchScreen = ({ navigation }) => {
     }, 100);
   };
 
-  // Buscar producto por código escaneado
-  const searchProductByCode = async (code) => {
+  const runSearch = async (fetcher) => {
     setLoading(true);
     setError('');
-
     try {
-      const apiUrl = `http://${dns}:${port}/api/search?searchTerm=${code}`;
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-
-      if (response.ok && data && data.length > 0) {
-        // Si hay exactamente 1 producto, ir directo al detalle
-        if (data.length === 1) {
-          navigation.navigate('Detalle del Producto', { product: data[0] });
-          setQuery('');
-          return;
-        }
-        setResults(data);
+      const rows = await fetcher();
+      if (rows.length === 1) {
+        navigation.navigate('Detalle del Producto', { product: rows[0] });
+        setQuery('');
+        return;
+      }
+      if (rows.length > 0) {
+        setResults(rows);
       } else {
-        setError('Producto no encontrado');
+        setError('No se encontraron productos');
         setResults([]);
-        // Volver a hacer foco en el SearchBar
         searchInputRef.current?.focus();
       }
     } catch (err) {
       setError('Error de conexión. Verifique la configuración del servidor.');
-      // Volver a hacer foco en el SearchBar
       searchInputRef.current?.focus();
     } finally {
       setLoading(false);
     }
   };
 
+  const searchProductByCode = (code) => runSearch(() => searchProductsByCode(code));
 
-  const searchProducts = async () => {
-    if (!query.trim()) return; 
-
-    setLoading(true); 
-    setError(''); 
-
-    try {
-      const apiUrl = `http://${dns}:${port}/api/search?searchTerm=${query}`;
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-
-      if (response.ok) {
-        // Si hay exactamente 1 producto, ir directo al detalle
-        if (data && data.length === 1) {
-          navigation.navigate('Detalle del Producto', { product: data[0] });
-          setQuery(''); // Limpiar búsqueda
-          return;
-        }
-        if (data && data.length > 0) {
-          setResults(data);
-        } else {
-          setError('No se encontraron productos');
-          setResults([]);
-          // Volver a hacer foco en el SearchBar
-          searchInputRef.current?.focus();
-        }
-      } else {
-        setError('No se encontraron productos');
-        // Volver a hacer foco en el SearchBar
-        searchInputRef.current?.focus();
-      }
-    } catch (err) {
-      setError('Error de conexión. Verifique la configuración del servidor.');
-      // Volver a hacer foco en el SearchBar
-      searchInputRef.current?.focus();
-    } finally {
-      setLoading(false); 
-    }
+  const searchProducts = () => {
+    if (!query.trim()) return;
+    return runSearch(() => searchProductsByName(query));
   };
 
   // Handle the "Enter" key press
