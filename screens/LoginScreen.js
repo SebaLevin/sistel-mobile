@@ -163,7 +163,7 @@ const LoginScreen = ({ navigation }) => {
           />
 
           <Text style={styles.previewText}>
-            URL: http://{dns}:{port}/api/login
+            URL base: http://{dns}:{port} (login: POST /auth/login)
           </Text>
 
           <Button title="Guardar configuración" onPress={saveConfig} />

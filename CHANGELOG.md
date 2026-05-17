@@ -6,6 +6,11 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencias alineadas a Expo SDK 52 vía `npx expo install --fix`: `expo` `~52.0.17` → `~52.0.49`, `react-native` `0.76.3` → `0.76.9`, `@react-native-async-storage/async-storage` `^2.2.0` → `1.23.1`, `expo-build-properties` `^0.13.1` → `~0.13.3`, `expo-status-bar` `~2.0.0` → `~2.0.1`, `expo-system-ui` `^4.0.5` → `~4.0.9`, `react-native-screens` `~4.1.0` → `~4.4.0`. Sin esto, Metro quedaba colgado bundleando sin tirar error visible.
+- [screens/LoginScreen.js](screens/LoginScreen.js): preview de la URL de configuración actualizado a `URL base: http://{dns}:{port} (login: POST /auth/login)` (antes mostraba `/api/login` del backend viejo).
+
 ### Pendiente
 
 - Configurar los aliases en `platform-api/config.json` para que las llamadas del mobile resuelvan a vistas / SPs reales (ver sección "Configuración requerida en el backend" más abajo).
