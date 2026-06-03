@@ -54,10 +54,12 @@ const SearchScreen = ({ navigation }) => {
     
     setScanned(true);
     setShowScanner(false);
-    setQuery(data);
-    
+    // El scanner suele anexar un espacio/whitespace al final del código.
+    const code = String(data).trim();
+    setQuery(code);
+
     // Buscar automáticamente con el código escaneado
-    await searchProductByCode(data);
+    await searchProductByCode(code);
     
     // Restaurar foco después de cerrar el escáner
     setTimeout(() => {
@@ -92,9 +94,17 @@ const SearchScreen = ({ navigation }) => {
 
   const searchProductByCode = (code) => runSearch(() => searchProductsByCode(code));
 
+  // Un EAN/UPC es todo dígitos y de largo razonable (8+). Si lo tipeado
+  // cumple eso, lo tratamos como código de barra (CodBar); si no, como
+  // nombre/descripción (Concepto). Así una sola caja sirve para ambos.
+  const isBarcode = (text) => /^\d{8,}$/.test(text.trim());
+
   const searchProducts = () => {
-    if (!query.trim()) return;
-    return runSearch(() => searchProductsByName(query));
+    const term = query.trim();
+    if (!term) return;
+    return isBarcode(term)
+      ? runSearch(() => searchProductsByCode(term))
+      : runSearch(() => searchProductsByName(term));
   };
 
   // Handle the "Enter" key press
