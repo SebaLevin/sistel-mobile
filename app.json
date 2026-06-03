@@ -53,7 +53,8 @@
           "cameraPermission": "Permitir acceso a la cámara para escanear códigos de barras."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-status-bar"
     ]
   }
 }
