@@ -118,6 +118,27 @@ const SearchScreen = ({ navigation }) => {
     navigation.navigate('Detalle del Producto', { product });
   };
 
+  // Al cambiar el texto (editar una letra o borrar todo), la lista de
+  // resultados y el mensaje de error desaparecen hasta la próxima búsqueda.
+  const handleQueryChange = (text) => {
+    setResults([]);
+    setError('');
+
+    // Lector físico (keyboard wedge): tipea el EAN en el campo y lo termina
+    // con un espacio. Si el texto es todo dígitos (≥8) + whitespace al final,
+    // lo tomamos como un escaneo: sacamos el espacio y buscamos por código.
+    // Un nombre con espacio ("cable hdmi") no es todo dígitos, así que no entra acá.
+    const scan = text.match(/^(\d{8,})\s+$/);
+    if (scan) {
+      const code = scan[1];
+      setQuery(code);
+      searchProductByCode(code);
+      return;
+    }
+
+    setQuery(text);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
@@ -126,7 +147,7 @@ const SearchScreen = ({ navigation }) => {
           style={styles.input}
           placeholder="Buscar producto"
           value={query}
-          onChangeText={(text) => setQuery(text)}
+          onChangeText={handleQueryChange}
           onSubmitEditing={handleSubmitEditing}  
           returnKeyType="search"
           autoFocus={true}

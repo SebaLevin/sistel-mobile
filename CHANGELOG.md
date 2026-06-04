@@ -8,6 +8,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Fixed
 
+- [screens/SearchScreen.js](screens/SearchScreen.js): soporte para **lector físico (keyboard wedge)**. Estos lectores "tipean" el EAN en el campo y lo terminan con un espacio (no pasan por la cámara/`handleBarcodeScanned`, así que el `.trim()` de ese flujo no aplicaba). Ahora `onChangeText` detecta el patrón `^\d{8,}\s+$` (todo dígitos + espacio final), saca el espacio y dispara la búsqueda por código automáticamente. Un nombre con espacio (ej. "cable hdmi") no es todo dígitos, así que no se ve afectado.
+- [screens/SearchScreen.js](screens/SearchScreen.js): al cambiar el texto del buscador (editar una letra o borrar todo), la lista de resultados y el mensaje de error desaparecen hasta la próxima búsqueda.
 - [screens/SearchScreen.js](screens/SearchScreen.js) + [lib/data.js](lib/data.js): búsqueda por código de barra. El scanner anexaba un espacio al final del código (`"7792180001641 "`), que viajaba dentro del patrón `LIKE '%...  %'` del backend y nunca matcheaba → ahora se trimea el valor escaneado/tipeado. Además `searchProductsByCode` pegaba a la columna `Codigo` (SKU interno, ej. `SALTA.173`) en vez de `CodBar` (el EAN) → corregido a `CodBar`. Esto elimina la necesidad del parche que se había hecho en la vista `dbo.VistaMobileProductos` del cliente (`CodBar + ' ' as Concepto`, `Concepto as Marca`), que corrompía las columnas de descripción/marca y rompía la búsqueda por nombre. La vista debe revertirse a sus columnas reales.
 
 ### Changed
