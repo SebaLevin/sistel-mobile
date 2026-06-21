@@ -4,7 +4,7 @@ import { View, TextInput, FlatList, Text, StyleSheet, Keyboard, Pressable, Modal
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from '@react-navigation/native';
-import { searchProductsByName, searchProductsByCode } from '../lib/data';
+import { searchProducts } from '../lib/data';
 
 const SearchScreen = ({ navigation }) => {
   const [query, setQuery] = useState('');
@@ -59,7 +59,7 @@ const SearchScreen = ({ navigation }) => {
     setQuery(code);
 
     // Buscar automáticamente con el código escaneado
-    await searchProductByCode(code);
+    await runProductSearch(code);
     
     // Restaurar foco después de cerrar el escáner
     setTimeout(() => {
@@ -92,25 +92,20 @@ const SearchScreen = ({ navigation }) => {
     }
   };
 
-  const searchProductByCode = (code) => runSearch(() => searchProductsByCode(code));
+  // Búsqueda única: pega a Concepto + Codigo + CodBar y mergea (ver lib/data).
+  const runProductSearch = (term) => runSearch(() => searchProducts(term));
 
-  // Un EAN/UPC es todo dígitos y de largo razonable (8+). Si lo tipeado
-  // cumple eso, lo tratamos como código de barra (CodBar); si no, como
-  // nombre/descripción (Concepto). Así una sola caja sirve para ambos.
-  const isBarcode = (text) => /^\d{8,}$/.test(text.trim());
-
-  const searchProducts = () => {
+  // Submit manual (lupa / Enter)
+  const submitSearch = () => {
     const term = query.trim();
     if (!term) return;
-    return isBarcode(term)
-      ? runSearch(() => searchProductsByCode(term))
-      : runSearch(() => searchProductsByName(term));
+    return runProductSearch(term);
   };
 
   // Handle the "Enter" key press
   const handleSubmitEditing = () => {
-    searchProducts();
-    Keyboard.dismiss();  
+    submitSearch();
+    Keyboard.dismiss();
   };
 
 
@@ -126,13 +121,13 @@ const SearchScreen = ({ navigation }) => {
 
     // Lector físico (keyboard wedge): tipea el EAN en el campo y lo termina
     // con un espacio. Si el texto es todo dígitos (≥8) + whitespace al final,
-    // lo tomamos como un escaneo: sacamos el espacio y buscamos por código.
+    // lo tomamos como un escaneo y buscamos automáticamente (sin el espacio).
     // Un nombre con espacio ("cable hdmi") no es todo dígitos, así que no entra acá.
     const scan = text.match(/^(\d{8,})\s+$/);
     if (scan) {
       const code = scan[1];
       setQuery(code);
-      searchProductByCode(code);
+      runProductSearch(code);
       return;
     }
 
@@ -154,7 +149,7 @@ const SearchScreen = ({ navigation }) => {
         />
 
         {/* Search Icon */}
-        <Pressable onPress={searchProducts} style={styles.searchIcon}>
+        <Pressable onPress={submitSearch} style={styles.searchIcon}>
           <Ionicons name="search" size={24} color="gray" />
         </Pressable>
 
